@@ -1,0 +1,38 @@
+export const games = [
+  {
+    name: "STAR WARS: Galactic Racer",
+    edition: "Deluxe Edition",
+    store: "Steam / GMG",
+    target: "₹1,599.60",
+    status: "Price target",
+    color: "text-cyan-400",
+    icon: "✦",
+  },
+  {
+    name: "Resident Evil Requiem",
+    edition: "Standard Edition",
+    store: "Steam / GMG",
+    target: "70% off",
+    status: "Discount target",
+    color: "text-red-400",
+    icon: "◈",
+  },
+  {
+    name: "Crimson Desert",
+    edition: "Tracked base game",
+    store: "Steam / GMG",
+    target: "70% off",
+    status: "Discount target",
+    color: "text-amber-400",
+    icon: "⚔",
+  },
+  {
+    name: "PRAGMATA",
+    edition: "Deluxe / highest full-game edition",
+    store: "Steam / GMG",
+    target: "70% off",
+    status: "Discount target",
+    color: "text-violet-400",
+    icon: "◇",
+  },
+];

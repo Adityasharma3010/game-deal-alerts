@@ -1,5 +1,3 @@
-import React from "react";
-
 /**
  * GamePulse vector logo.
  * `variant="auto"` adapts to the current text color for the wordmark.

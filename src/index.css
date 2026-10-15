@@ -37,3 +37,330 @@ button:disabled,
 [role="button"][aria-disabled="true"] {
   cursor: not-allowed;
 }
+
+/* =========================================
+   GamePulse — Global UI Theme
+   ========================================= */
+
+:root {
+  --gp-bg: #0b0e14;
+  --gp-surface: #10131b;
+  --gp-surface-hover: #161b25;
+  --gp-border: rgba(255, 255, 255, 0.1);
+  --gp-text: #e2e8f0;
+  --gp-muted: #8493a9;
+  --gp-accent: #10d6a0;
+  --gp-accent-hover: #34e5b4;
+  --gp-scroll-track: #10131b;
+  --gp-scroll-thumb: #3b4657;
+}
+
+/* Consistent scrollbars throughout the application */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gp-scroll-thumb) var(--gp-scroll-track);
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--gp-scroll-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--gp-scroll-thumb);
+  border: 1px solid var(--gp-scroll-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--gp-accent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--gp-scroll-track);
+}
+
+/* Shared input styling */
+.gp-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--gp-border);
+  border-radius: 12px;
+  background: var(--gp-bg);
+  color: var(--gp-text);
+  padding: 12px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.gp-input::placeholder {
+  color: var(--gp-muted);
+}
+
+.gp-input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.gp-input:focus-visible {
+  border-color: var(--gp-accent);
+  box-shadow: 0 0 0 3px rgba(16, 214, 160, 0.12);
+}
+
+.gp-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--gp-accent);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--gp-accent);
+  outline-offset: 3px;
+}
+
+/* Shared custom select */
+.gp-select-root {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.gp-select-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--gp-border);
+  border-radius: 12px;
+  background: var(--gp-bg);
+  color: var(--gp-text);
+  padding: 12px 14px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.gp-select-trigger:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--gp-surface-hover);
+}
+
+.gp-select-trigger:focus-visible,
+.gp-select-trigger[aria-expanded="true"] {
+  border-color: var(--gp-accent);
+  box-shadow: 0 0 0 3px rgba(16, 214, 160, 0.12);
+  outline: none;
+}
+
+.gp-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.gp-select-value,
+.gp-select-placeholder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-select-placeholder {
+  color: var(--gp-muted);
+}
+
+.gp-select-chevron {
+  flex: 0 0 auto;
+  color: #aab6c7;
+  transition:
+    transform 180ms ease,
+    color 180ms ease;
+}
+
+.gp-select-chevron.is-open {
+  transform: rotate(180deg);
+  color: var(--gp-accent);
+}
+
+.gp-select-menu {
+  z-index: 200;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: #111620;
+  padding: 5px;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  animation: gp-select-in 120ms ease-out;
+}
+
+.gp-select-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #cbd5e1;
+  padding: 10px 11px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.gp-select-option-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gp-select-option:hover,
+.gp-select-option.is-active {
+  background: rgba(16, 214, 160, 0.08);
+  color: #f1f5f9;
+}
+
+.gp-select-option.is-selected {
+  background: rgba(16, 214, 160, 0.12);
+  color: var(--gp-accent-hover);
+}
+
+.gp-select-option.is-selected svg {
+  flex: 0 0 auto;
+  color: var(--gp-accent);
+}
+
+.gp-select-option:focus-visible {
+  outline: 2px solid var(--gp-accent);
+  outline-offset: -2px;
+}
+
+@keyframes gp-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-input,
+  .gp-select-trigger,
+  .gp-select-chevron,
+  .gp-select-option {
+    transition: none;
+  }
+
+  .gp-select-menu {
+    animation: none;
+  }
+}
+
+/* Structured pricing for Steam editions in the shared custom select */
+.gp-select-trigger-content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gp-select-trigger-content .gp-select-value,
+.gp-select-trigger-content .gp-select-placeholder {
+  flex: 1 1 auto;
+}
+
+.gp-select-price {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.gp-select-price-compact {
+  gap: 6px;
+  font-size: 12px;
+}
+
+.gp-select-original-price {
+  color: var(--gp-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.gp-select-current-price {
+  color: var(--gp-accent-hover);
+  font-weight: 650;
+}
+
+.gp-select-option-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.gp-select-option-label {
+  display: block;
+  width: 100%;
+}
+
+.gp-select-option .gp-select-price {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.gp-select-option-check {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--gp-accent);
+}
+
+@media (max-width: 480px) {
+  .gp-select-trigger-content {
+    gap: 8px;
+  }
+
+  .gp-select-price-compact {
+    font-size: 11px;
+  }
+}
