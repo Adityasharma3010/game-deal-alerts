@@ -18,3 +18,22 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+
+/* Prevent dashboard content from flashing before GSAP initializes */
+#overview .page-heading,
+#overview .summary-card,
+#overview .animate-in {
+  visibility: hidden;
+}
+
+/* Show pointer cursor on interactive buttons */
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+/* Keep disabled buttons visually accurate */
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
