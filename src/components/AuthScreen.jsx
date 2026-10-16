@@ -4,7 +4,9 @@ import { supabase } from "../lib/supabase";
 import GamePulseLogo from "./GamePulseLogo";
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState(() =>
+    window.location.pathname === "/signup" ? "signup" : "login",
+  );
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

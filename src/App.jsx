@@ -5,6 +5,7 @@ import {
   Outlet,
   Route,
   Routes,
+  useLocation,
 } from "react-router-dom";
 import AuthScreen from "./components/AuthScreen";
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -12,12 +13,14 @@ import Overview from "./pages/Overview";
 import MyGames from "./pages/MyGames";
 import PriceHistory from "./pages/PriceHistory";
 import AlertActivity from "./pages/AlertActivity";
+import LandingPage from "./pages/LandingPage";
 
 function ProtectedLayout({ session }) {
   return <Outlet context={{ session }} />;
 }
 
 function AppRoutes() {
+  const location = useLocation();
   const { session, loading: authLoading, error: authError } = useAuth();
 
   if (authLoading) {
@@ -34,6 +37,19 @@ function AppRoutes() {
   }
 
   if (!session) {
+    const isAuthRoute =
+      location.pathname === "/login" || location.pathname === "/signup";
+
+    if (location.pathname === "/") {
+      return <LandingPage />;
+    }
+
+    if (!isAuthRoute) {
+      return (
+        <Navigate to="/login" replace state={{ from: location.pathname }} />
+      );
+    }
+
     return (
       <>
         {authError && (
@@ -44,9 +60,13 @@ function AppRoutes() {
             {authError}
           </p>
         )}
-        <AuthScreen />
+        <AuthScreen key={location.pathname} />
       </>
     );
+  }
+
+  if (location.pathname === "/login" || location.pathname === "/signup") {
+    return <Navigate to="/" replace />;
   }
 
   return (
