@@ -182,6 +182,16 @@ export default function AddGameModal({ onClose, onSaved }) {
       return;
     }
 
+    const selectedEdition = editions.find((option) => option.id === edition);
+    if (!selectedEdition?.packageId) {
+      transitionLayout(() => {
+        setError(
+          "Steam has not provided a verifiable purchase package for this option. Choose another purchase option so GamePulse can monitor the exact edition.",
+        );
+      });
+      return;
+    }
+
     setSaving(true);
     setError("");
 
@@ -190,8 +200,8 @@ export default function AddGameModal({ onClose, onSaved }) {
         steamAppId: selectedGame.steamAppId,
         title: selectedGame.title,
         coverImageUrl: selectedGame.coverImageUrl,
-        edition:
-          editions.find((option) => option.id === edition)?.label ?? edition,
+        edition: selectedEdition.label,
+        steamPackageId: selectedEdition.packageId,
         alertType: alert.type,
         targetPrice: alert.targetPrice,
         minimumDiscount: alert.minimumDiscount,

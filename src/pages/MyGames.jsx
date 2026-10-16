@@ -155,8 +155,10 @@ export default function MyGames() {
             </div>
             <div className="border-t border-white/[0.07] px-6 py-4">
               <p className="text-xs leading-5 text-slate-500">
-                Prices and live deal statuses will appear after store
-                integrations are implemented and verified.
+                Exact Steam purchase packages are saved for monitoring. Live
+                prices begin appearing after the database migration is applied
+                and the scheduled monitor is configured. Games added before
+                package IDs were stored must be re-added to monitor the exact edition.
               </p>
             </div>
           </>

@@ -1,16 +1,25 @@
-# React + Vite
+# GamePulse
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+GamePulse is a React + Vite game wishlist and price-alert dashboard. The app uses Supabase Auth and database tables, Tailwind CSS v4, and GSAP for its landing-page and dashboard animations.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Install Node.js and npm.
+2. Install dependencies with `npm ci`.
+3. Create `.env.local` with the client-side Supabase values:
 
-## React Compiler
+   ```env
+   VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+4. Start the app with `npm run dev` or use `vercel dev` when testing `/api/*` endpoints locally.
+5. Run `npm run lint` and `npm run build` before deploying.
 
-## Expanding the ESLint configuration
+Never put a Supabase service-role key in a `VITE_` variable or client-side code.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Steam monitor setup
+
+Read [`docs/STEAM_MONITOR_SETUP.md`](docs/STEAM_MONITOR_SETUP.md) before enabling monitoring. It covers the required Supabase migration, server-side Vercel environment variables, GitHub Actions secrets, and verification steps.
+
+The current monitor stores Steam INR price snapshots and triggered alert activity. Green Man Gaming matching and email delivery are not part of this implementation yet.
