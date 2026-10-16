@@ -1,0 +1,50 @@
+name: GamePulse Steam Price Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gamepulse-steam-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate required secrets
+        env:
+          GAMEPULSE_MONITOR_URL: ${{ secrets.GAMEPULSE_MONITOR_URL }}
+          GAMEPULSE_CRON_SECRET: ${{ secrets.GAMEPULSE_CRON_SECRET }}
+        run: |
+          if [ -z "$GAMEPULSE_MONITOR_URL" ]; then
+            echo "Missing repository secret: GAMEPULSE_MONITOR_URL" >&2
+            exit 1
+          fi
+          if [ -z "$GAMEPULSE_CRON_SECRET" ]; then
+            echo "Missing repository secret: GAMEPULSE_CRON_SECRET" >&2
+            exit 1
+          fi
+
+      - name: Run Steam price monitor
+        env:
+          GAMEPULSE_MONITOR_URL: ${{ secrets.GAMEPULSE_MONITOR_URL }}
+          GAMEPULSE_CRON_SECRET: ${{ secrets.GAMEPULSE_CRON_SECRET }}
+        run: |
+          set -eu
+          base_url="${GAMEPULSE_MONITOR_URL%/}"
+          case "$base_url" in
+            https://*) ;;
+            *) echo "GAMEPULSE_MONITOR_URL must be an HTTPS origin." >&2; exit 1 ;;
+          esac
+          curl --silent --show-error --fail-with-body --max-time 240 \
+            --request POST \
+            --url "${base_url}/api/monitor-steam" \
+            --header "Authorization: Bearer ${GAMEPULSE_CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            --data '{}'
