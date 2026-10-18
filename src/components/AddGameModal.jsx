@@ -8,9 +8,11 @@ import {
 } from "../services/games";
 
 const initialAlert = {
-  type: "minimum_discount",
+  targetPriceEnabled: false,
   targetPrice: "1599.60",
+  minimumDiscountEnabled: true,
   minimumDiscount: "10",
+  firstListingEnabled: false,
 };
 
 export default function AddGameModal({ onClose, onSaved }) {
@@ -196,15 +198,27 @@ export default function AddGameModal({ onClose, onSaved }) {
     setError("");
 
     try {
+      const selectedAlerts = [
+        ...(alert.targetPriceEnabled ? [{ type: "target_price", targetPrice: alert.targetPrice }] : []),
+        ...(alert.minimumDiscountEnabled ? [{ type: "minimum_discount", minimumDiscount: alert.minimumDiscount }] : []),
+        ...(alert.firstListingEnabled ? [{ type: "first_listing" }] : []),
+      ];
+      if (!selectedAlerts.length) {
+        transitionLayout(() => setError("Choose at least one alert condition."));
+        return;
+      }
+
       await saveTrackedGame({
         steamAppId: selectedGame.steamAppId,
         title: selectedGame.title,
         coverImageUrl: selectedGame.coverImageUrl,
         edition: selectedEdition.label,
         steamPackageId: selectedEdition.packageId,
-        alertType: alert.type,
-        targetPrice: alert.targetPrice,
-        minimumDiscount: alert.minimumDiscount,
+        alerts: [
+          ...(alert.targetPriceEnabled ? [{ type: "target_price", targetPrice: alert.targetPrice }] : []),
+          ...(alert.minimumDiscountEnabled ? [{ type: "minimum_discount", minimumDiscount: alert.minimumDiscount }] : []),
+          ...(alert.firstListingEnabled ? [{ type: "first_listing" }] : []),
+        ],
       });
 
       await onSaved();
@@ -401,90 +415,35 @@ export default function AddGameModal({ onClose, onSaved }) {
                 </p>
               </div>
 
-              <div>
-                <label
-                  htmlFor="alert-type"
-                  className="mb-2 block text-sm font-medium text-slate-200"
-                >
-                  Alert condition
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-200">Alert conditions</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Enable any combination. Each condition is saved as an independent alert.</p>
+                </div>
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
+                  <input type="checkbox" className="mt-1 accent-emerald-400" checked={alert.targetPriceEnabled} onChange={(event) => setAlert((current) => ({ ...current, targetPriceEnabled: event.target.checked }))} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-100">Target price</span>
+                    <span className="mt-1 block text-xs text-slate-400">Notify when the price reaches or drops below your amount.</span>
+                    {alert.targetPriceEnabled && <span className="mt-3 block"><span className="mb-1 block text-xs text-slate-400">Target price (₹)</span><input className={fieldClass} type="number" min="0.01" step="0.01" required value={alert.targetPrice} onChange={(event) => setAlert((current) => ({ ...current, targetPrice: event.target.value }))} /></span>}
+                  </span>
                 </label>
-                <Select
-                  value={alert.type}
-                  onChange={(value) =>
-                    setAlert((current) => ({
-                      ...current,
-                      type: value,
-                    }))
-                  }
-                  ariaLabel="Alert condition"
-                  options={[
-                    { value: "minimum_discount", label: "Minimum discount" },
-                    { value: "target_price", label: "Target price (INR)" },
-                    { value: "first_listing", label: "First verified listing" },
-                  ]}
-                />
-                {alert.type === "first_listing" && (
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    Notify me when a supported store listing is first verified.
-                    This does not require a discount. This alert will only
-                    trigger once listing verification is implemented by the
-                    monitoring service.
-                  </p>
-                )}
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
+                  <input type="checkbox" className="mt-1 accent-emerald-400" checked={alert.minimumDiscountEnabled} onChange={(event) => setAlert((current) => ({ ...current, minimumDiscountEnabled: event.target.checked }))} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-100">Minimum discount</span>
+                    <span className="mt-1 block text-xs text-slate-400">Notify when the discount reaches your chosen percentage.</span>
+                    {alert.minimumDiscountEnabled && <span className="mt-3 block"><span className="mb-1 block text-xs text-slate-400">Minimum discount (%)</span><input className={fieldClass} type="number" min="1" max="100" step="1" required value={alert.minimumDiscount} onChange={(event) => setAlert((current) => ({ ...current, minimumDiscount: event.target.value }))} /></span>}
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
+                  <input type="checkbox" className="mt-1 accent-emerald-400" checked={alert.firstListingEnabled} onChange={(event) => setAlert((current) => ({ ...current, firstListingEnabled: event.target.checked }))} />
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-100">First verified listing</span><span className="mt-1 block text-xs leading-5 text-slate-400">Notify when a supported store listing is first verified. This depends on the monitor detecting a first listing.</span></span>
+                </label>
               </div>
-
-              {alert.type === "minimum_discount" && (
-                <div>
-                  <label
-                    htmlFor="minimum-discount"
-                    className="mb-2 block text-sm font-medium text-slate-200"
-                  >
-                    Minimum discount (%)
-                  </label>
-                  <input
-                    id="minimum-discount"
-                    className={fieldClass}
-                    type="number"
-                    min="1"
-                    max="100"
-                    step="1"
-                    required
-                    value={alert.minimumDiscount}
-                    onChange={(event) =>
-                      setAlert((current) => ({
-                        ...current,
-                        minimumDiscount: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              )}
-
-              {alert.type === "target_price" && (
-                <div>
-                  <label
-                    htmlFor="target-price"
-                    className="mb-2 block text-sm font-medium text-slate-200"
-                  >
-                    Target price (₹)
-                  </label>
-                  <input
-                    id="target-price"
-                    className={fieldClass}
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    required
-                    value={alert.targetPrice}
-                    onChange={(event) =>
-                      setAlert((current) => ({
-                        ...current,
-                        targetPrice: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              )}
 
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                 <p className="text-sm font-semibold text-slate-200">
@@ -520,10 +479,10 @@ export default function AddGameModal({ onClose, onSaved }) {
           <button
             type="submit"
             form="game-alert-form"
-            disabled={!selectedGame || loadingDetails || saving || !edition}
+            disabled={!selectedGame || loadingDetails || saving || !edition || !(alert.targetPriceEnabled || alert.minimumDiscountEnabled || alert.firstListingEnabled)}
             className={`${buttonClass} border-emerald-400/30 bg-emerald-400 text-[#07110d] hover:bg-emerald-300`}
           >
-            {saving ? "Saving..." : "Save game & alert"}
+            {saving ? "Saving..." : "Save game & alerts"}
           </button>
         </footer>
       </section>

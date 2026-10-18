@@ -29,40 +29,63 @@ export async function getSteamGameDetails(steamAppId) {
 }
 
 export async function saveTrackedGame({
-  steamAppId,
-  title,
-  coverImageUrl,
-  edition,
-  steamPackageId,
-  alertType,
-  targetPrice,
-  minimumDiscount,
+  steamAppId, title, coverImageUrl, edition, steamPackageId, alerts,
+  alertType, targetPrice, minimumDiscount,
 }) {
-  const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession();
-
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
+  if (!sessionData.session) throw new Error("Your session has expired. Please sign in again.");
 
-  if (!sessionData.session) {
-    throw new Error("Your session has expired. Please sign in again.");
-  }
-
-  const { data, error } = await supabase.rpc("track_steam_game", {
+  // Backward-compatible fallback for callers still passing a single alert.
+  const normalizedAlerts = alerts?.length ? alerts : [{ type: alertType, targetPrice, minimumDiscount }];
+  const { data, error } = await supabase.rpc("track_steam_game_with_rules", {
     p_steam_app_id: steamAppId,
     p_title: title,
     p_cover_image_url: coverImageUrl,
     p_edition: edition,
     p_steam_package_id: steamPackageId,
     p_store: "steam",
-    p_alert_type: alertType,
-    p_target_price: alertType === "target_price" ? Number(targetPrice) : null,
-    p_minimum_discount:
-      alertType === "minimum_discount" ? Number(minimumDiscount) : null,
+    p_alerts: normalizedAlerts.map((alert) => ({
+      type: alert.type,
+      target_price: alert.type === "target_price" ? Number(alert.targetPrice) : null,
+      minimum_discount: alert.type === "minimum_discount" ? Number(alert.minimumDiscount) : null,
+    })),
   });
-
   if (error) throw error;
-
   return data;
+}
+
+export async function updateTrackedGameRules(trackedGameId, rules) {
+  const { data: existing, error: readError } = await supabase
+    .from("alert_rules").select("id, alert_type").eq("tracked_game_id", trackedGameId);
+  if (readError) throw readError;
+
+  const desired = new Set(rules.map((rule) => rule.type));
+  for (const rule of existing ?? []) {
+    if (!desired.has(rule.alert_type)) {
+      const { error } = await supabase.from("alert_rules").delete().eq("id", rule.id);
+      if (error) throw error;
+    }
+  }
+  for (const rule of rules) {
+    const payload = {
+      tracked_game_id: trackedGameId, store: "steam", alert_type: rule.type,
+      target_price: rule.type === "target_price" ? Number(rule.targetPrice) : null,
+      minimum_discount: rule.type === "minimum_discount" ? Number(rule.minimumDiscount) : null,
+      currency: "INR", is_enabled: rule.enabled !== false,
+      notify_on_first_listing: rule.type === "first_listing",
+    };
+    const current = (existing ?? []).find((item) => item.alert_type === rule.type);
+    const result = current
+      ? await supabase.from("alert_rules").update(payload).eq("id", current.id)
+      : await supabase.from("alert_rules").insert(payload);
+    if (result.error) throw result.error;
+  }
+}
+
+export async function removeTrackedGame(trackedGameId) {
+  const { error } = await supabase.from("tracked_games").delete().eq("id", trackedGameId);
+  if (error) throw error;
 }
 
 export async function getMyTrackedGames() {

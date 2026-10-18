@@ -4,14 +4,19 @@ import {
   formatAlertThreshold,
   formatStores,
   getMyTrackedGames,
+  removeTrackedGame,
 } from "../services/games";
 import AddGameModal from "../components/AddGameModal";
+import EditGameAlertsModal from "../components/EditGameAlertsModal";
 
 export default function MyGames() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddGame, setShowAddGame] = useState(false);
+  const [editingGame, setEditingGame] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
+  const [actionError, setActionError] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -78,6 +83,8 @@ export default function MyGames() {
           </p>
         </div>
 
+        {actionError && <p role="alert" className="border-b border-red-400/20 bg-red-400/[0.05] px-5 py-3 text-sm text-red-300">{actionError}</p>}
+
         {loading ? (
           <div
             className="flex items-center gap-3 p-8 text-sm text-slate-400"
@@ -118,6 +125,7 @@ export default function MyGames() {
                     <th className="px-6 py-4 font-medium">Stores</th>
                     <th className="px-6 py-4 font-medium">Alert threshold</th>
                     <th className="px-6 py-4 font-medium">Status</th>
+                    <th className="px-6 py-4 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.05]">
@@ -148,6 +156,19 @@ export default function MyGames() {
                           {formatAlertStatus(game.rules)}
                         </span>
                       </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => { setActionError(""); setEditingGame(game); }} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-300">Edit alerts</button>
+                          <button type="button" disabled={removingId === game.id} onClick={async () => {
+                            const confirmed = window.confirm(`Remove ${game.title} — ${game.edition} from My Games? Its alert rules and related monitoring history for this tracked entry may also be removed.`);
+                            if (!confirmed) return;
+                            setRemovingId(game.id); setActionError("");
+                            try { await removeTrackedGame(game.id); setReloadToken((value) => value + 1); }
+                            catch (e) { setActionError(e.message || "Unable to remove this game."); }
+                            finally { setRemovingId(null); }
+                          }} className="rounded-lg border border-red-400/20 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-400/10 disabled:opacity-50">{removingId === game.id ? "Removing..." : "Remove"}</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -164,6 +185,14 @@ export default function MyGames() {
           </>
         )}
       </section>
+
+      {editingGame && (
+        <EditGameAlertsModal
+          game={editingGame}
+          onClose={() => setEditingGame(null)}
+          onSaved={() => setReloadToken((value) => value + 1)}
+        />
+      )}
 
       {showAddGame && (
         <AddGameModal
