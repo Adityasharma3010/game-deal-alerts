@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { sendPendingAlertEmails } from "./_lib/alert-email.js";
 
 const jsonHeaders = { "Cache-Control": "no-store" };
 
@@ -199,6 +200,13 @@ export default async function handler(req, res) {
     const successful = results.filter((result) => result?.ok);
     const failed = results.filter((result) => result && !result.ok);
     const eventsCreated = successful.reduce((sum, result) => sum + result.value.eventsCreated, 0);
+    let emailDelivery = { attempted: 0, sent: 0, failed: 0, skipped: true };
+    try {
+      emailDelivery = await sendPendingAlertEmails(supabase);
+    } catch (emailError) {
+      console.error("Pending alert email delivery failed:", emailError.message);
+      emailDelivery = { attempted: 0, sent: 0, failed: 1, skipped: false };
+    }
 
     if (failed.length) {
       console.error("Some Steam packages could not be checked:", failed.map((result) => result.error?.message));
@@ -211,6 +219,7 @@ export default async function handler(req, res) {
       packagesChecked: successful.length,
       packagesFailed: failed.length,
       alertEventsCreated: eventsCreated,
+      emailDelivery,
       skippedWithoutPackageId: (trackedGames || []).filter((game) => !game.steam_package_id).length,
       results: successful.map((result) => result.value),
       failures: failed.map((result) => ({ message: result.error?.message || "Unknown package error" })),

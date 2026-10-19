@@ -15,7 +15,7 @@ const initialAlert = {
   firstListingEnabled: false,
 };
 
-export default function AddGameModal({ onClose, onSaved }) {
+export default function AddGameModal({ onClose, onSaved, onSavingChange }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [selectedGame, setSelectedGame] = useState(null);
@@ -27,6 +27,8 @@ export default function AddGameModal({ onClose, onSaved }) {
   const dialogRef = useRef(null);
   const overlayRef = useRef(null);
   const startHeightRef = useRef(null);
+  const closingRef = useRef(false);
+  const closedVisuallyRef = useRef(false);
   const [layoutVersion, setLayoutVersion] = useState(0);
 
   function transitionLayout(update) {
@@ -39,6 +41,9 @@ export default function AddGameModal({ onClose, onSaved }) {
   }
 
   const [alert, setAlert] = useState(initialAlert);
+  const [storeSelection, setStoreSelection] = useState("steam");
+  const [gmgProductUrl, setGmgProductUrl] = useState("");
+  const [regionCode, setRegionCode] = useState("IN");
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -98,6 +103,43 @@ export default function AddGameModal({ onClose, onSaved }) {
 
     return () => context.revert();
   }, [layoutVersion]);
+
+  function animateOpen() {
+    closingRef.current = false;
+    closedVisuallyRef.current = false;
+    const overlay = overlayRef.current;
+    const dialog = dialogRef.current;
+    if (!overlay || !dialog || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (overlay) gsap.set(overlay, { autoAlpha: 1, clearProps: "all" });
+      if (dialog) gsap.set(dialog, { autoAlpha: 1, y: 0, scale: 1, clearProps: "all" });
+      return;
+    }
+    gsap.killTweensOf([overlay, dialog]);
+    gsap.set(overlay, { autoAlpha: 1 });
+    gsap.fromTo(dialog, { autoAlpha: 0, y: 12, scale: 0.985 }, { autoAlpha: 1, y: 0, scale: 1, duration: 0.24, ease: "power2.out", clearProps: "transform" });
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" });
+  }
+
+  function animateClose({ keepMounted = false } = {}) {
+    if (closingRef.current) return Promise.resolve();
+    closingRef.current = true;
+    const overlay = overlayRef.current;
+    const dialog = dialogRef.current;
+    const finish = () => {
+      closedVisuallyRef.current = true;
+      if (!keepMounted) onClose();
+    };
+    if (!overlay || !dialog || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finish();
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      gsap.killTweensOf([overlay, dialog]);
+      gsap.timeline({ onComplete: () => { finish(); resolve(); } })
+        .to(dialog, { autoAlpha: 0, y: 10, scale: 0.985, duration: 0.17, ease: "power1.in" })
+        .to(overlay, { autoAlpha: 0, duration: 0.15, ease: "power1.in" }, "<0.025");
+    });
+  }
 
   async function handleSearch(event) {
     event.preventDefault();
@@ -178,63 +220,87 @@ export default function AddGameModal({ onClose, onSaved }) {
     event.preventDefault();
 
     if (!selectedGame) {
-      transitionLayout(() => {
-        setError("Choose a game from the search results first.");
-      });
+      transitionLayout(() => setError("Choose a game from the search results first."));
       return;
     }
 
     const selectedEdition = editions.find((option) => option.id === edition);
-    if (!selectedEdition?.packageId) {
-      transitionLayout(() => {
-        setError(
-          "Steam has not provided a verifiable purchase package for this option. Choose another purchase option so GamePulse can monitor the exact edition.",
-        );
-      });
+    if ((storeSelection === "steam" || storeSelection === "both") && !selectedEdition?.packageId) {
+      transitionLayout(() => setError("Steam has not provided a verifiable purchase package for this option. Choose another edition or select GMG only."));
+      return;
+    }
+    if (storeSelection === "gmg" || storeSelection === "both") {
+      let parsedUrl;
+      try { parsedUrl = new URL(gmgProductUrl.trim()); } catch { parsedUrl = null; }
+      if (!parsedUrl || parsedUrl.protocol !== "https:" || !/(^|\.)greenmangaming\.com$/i.test(parsedUrl.hostname)) {
+        transitionLayout(() => setError("Enter the exact official HTTPS Green Man Gaming product URL for the selected edition."));
+        return;
+      }
+      if (!/^[A-Z]{2}$/.test(regionCode.toUpperCase())) {
+        transitionLayout(() => setError("Enter a two-letter region code, such as IN, US, or GB."));
+        return;
+      }
+    }
+
+    const selectedAlerts = [
+      ...(alert.targetPriceEnabled ? [{ type: "target_price", targetPrice: alert.targetPrice }] : []),
+      ...(alert.minimumDiscountEnabled ? [{ type: "minimum_discount", minimumDiscount: alert.minimumDiscount }] : []),
+      ...(alert.firstListingEnabled ? [{ type: "first_listing" }] : []),
+    ];
+    if (!selectedAlerts.length) {
+      transitionLayout(() => setError("Choose at least one alert condition."));
+      return;
+    }
+    if (alert.targetPriceEnabled && !(Number(alert.targetPrice) > 0)) {
+      transitionLayout(() => setError("Enter a target price greater than zero."));
+      return;
+    }
+    if (alert.minimumDiscountEnabled && !(Number(alert.minimumDiscount) >= 1 && Number(alert.minimumDiscount) <= 100)) {
+      transitionLayout(() => setError("Minimum discount must be between 1 and 100."));
       return;
     }
 
     setSaving(true);
     setError("");
+    onSavingChange?.(true);
+
+    // Close visually first, but keep this component mounted while the request runs.
+    // If saving fails, the user's selections remain intact and the modal reopens.
+    await animateClose({ keepMounted: true });
 
     try {
-      const selectedAlerts = [
-        ...(alert.targetPriceEnabled ? [{ type: "target_price", targetPrice: alert.targetPrice }] : []),
-        ...(alert.minimumDiscountEnabled ? [{ type: "minimum_discount", minimumDiscount: alert.minimumDiscount }] : []),
-        ...(alert.firstListingEnabled ? [{ type: "first_listing" }] : []),
-      ];
-      if (!selectedAlerts.length) {
-        transitionLayout(() => setError("Choose at least one alert condition."));
-        return;
-      }
-
       await saveTrackedGame({
         steamAppId: selectedGame.steamAppId,
         title: selectedGame.title,
         coverImageUrl: selectedGame.coverImageUrl,
         edition: selectedEdition.label,
         steamPackageId: selectedEdition.packageId,
-        alerts: [
-          ...(alert.targetPriceEnabled ? [{ type: "target_price", targetPrice: alert.targetPrice }] : []),
-          ...(alert.minimumDiscountEnabled ? [{ type: "minimum_discount", minimumDiscount: alert.minimumDiscount }] : []),
-          ...(alert.firstListingEnabled ? [{ type: "first_listing" }] : []),
-        ],
+        alerts: selectedAlerts,
+        storeSelection,
+        gmgProductUrl,
+        regionCode,
       });
 
       await onSaved();
       onClose();
     } catch (err) {
-      transitionLayout(() => {
-        setError(
-          err.message?.includes("duplicate key")
-            ? "This game edition is already in your collection."
-            : err.message || "Unable to save this game.",
-        );
-      });
+      setError(err.message?.includes("duplicate key")
+        ? "This game edition is already in your collection."
+        : err.message || "Unable to save this game. Your selections are still here—please try again.");
+      animateOpen();
     } finally {
       setSaving(false);
+      onSavingChange?.(false);
     }
   }
+
+  useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !dialogRef.current) return;
+    const options = dialogRef.current.querySelectorAll("[data-alert-option]");
+    if (options.length) gsap.fromTo(options, { y: 4 }, { y: 0, duration: 0.2, stagger: 0.035, ease: "power2.out", overwrite: "auto" });
+    const fields = dialogRef.current.querySelectorAll("[data-alert-field]");
+    if (fields.length) gsap.fromTo(fields, { autoAlpha: 0, y: -5, height: 0 }, { autoAlpha: 1, y: 0, height: "auto", duration: 0.24, stagger: 0.035, ease: "power2.out", overwrite: "auto", clearProps: "all" });
+  }, [alert.targetPriceEnabled, alert.minimumDiscountEnabled, alert.firstListingEnabled]);
 
   const fieldClass = "gp-input";
 
@@ -246,7 +312,7 @@ export default function AddGameModal({ onClose, onSaved }) {
       ref={overlayRef}
       className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving) onClose();
+        if (event.target === event.currentTarget && !saving) animateClose();
       }}
     >
       <section
@@ -272,7 +338,7 @@ export default function AddGameModal({ onClose, onSaved }) {
           <button
             type="button"
             className={buttonClass}
-            onClick={onClose}
+            onClick={() => animateClose()}
             disabled={saving}
             aria-label="Close Add Game"
           >
@@ -421,38 +487,56 @@ export default function AddGameModal({ onClose, onSaved }) {
                   <p className="mt-1 text-xs leading-5 text-slate-500">Enable any combination. Each condition is saved as an independent alert.</p>
                 </div>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
+                <label data-alert-option className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
                   <input type="checkbox" className="mt-1 accent-emerald-400" checked={alert.targetPriceEnabled} onChange={(event) => setAlert((current) => ({ ...current, targetPriceEnabled: event.target.checked }))} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-slate-100">Target price</span>
                     <span className="mt-1 block text-xs text-slate-400">Notify when the price reaches or drops below your amount.</span>
-                    {alert.targetPriceEnabled && <span className="mt-3 block"><span className="mb-1 block text-xs text-slate-400">Target price (₹)</span><input className={fieldClass} type="number" min="0.01" step="0.01" required value={alert.targetPrice} onChange={(event) => setAlert((current) => ({ ...current, targetPrice: event.target.value }))} /></span>}
+                    {alert.targetPriceEnabled && <span data-alert-field className="mt-3 block"><span className="mb-1 block text-xs text-slate-400">Target price (₹)</span><input className={fieldClass} type="number" min="0.01" step="0.01" required value={alert.targetPrice} onChange={(event) => setAlert((current) => ({ ...current, targetPrice: event.target.value }))} /></span>}
                   </span>
                 </label>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
+                <label data-alert-option className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
                   <input type="checkbox" className="mt-1 accent-emerald-400" checked={alert.minimumDiscountEnabled} onChange={(event) => setAlert((current) => ({ ...current, minimumDiscountEnabled: event.target.checked }))} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-slate-100">Minimum discount</span>
                     <span className="mt-1 block text-xs text-slate-400">Notify when the discount reaches your chosen percentage.</span>
-                    {alert.minimumDiscountEnabled && <span className="mt-3 block"><span className="mb-1 block text-xs text-slate-400">Minimum discount (%)</span><input className={fieldClass} type="number" min="1" max="100" step="1" required value={alert.minimumDiscount} onChange={(event) => setAlert((current) => ({ ...current, minimumDiscount: event.target.value }))} /></span>}
+                    {alert.minimumDiscountEnabled && <span data-alert-field className="mt-3 block"><span className="mb-1 block text-xs text-slate-400">Minimum discount (%)</span><input className={fieldClass} type="number" min="1" max="100" step="1" required value={alert.minimumDiscount} onChange={(event) => setAlert((current) => ({ ...current, minimumDiscount: event.target.value }))} /></span>}
                   </span>
                 </label>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
+                <label data-alert-option className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] p-4 transition hover:border-emerald-400/30">
                   <input type="checkbox" className="mt-1 accent-emerald-400" checked={alert.firstListingEnabled} onChange={(event) => setAlert((current) => ({ ...current, firstListingEnabled: event.target.checked }))} />
                   <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-100">First verified listing</span><span className="mt-1 block text-xs leading-5 text-slate-400">Notify when a supported store listing is first verified. This depends on the monitor detecting a first listing.</span></span>
                 </label>
               </div>
 
-              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-                <p className="text-sm font-semibold text-slate-200">
-                  Store monitoring
-                </p>
-                <p className="mt-1 text-sm text-slate-400">
-                  Steam will be saved as the initial store. Green Man Gaming can
-                  be added after its exact product and edition are verified.
-                </p>
+              <div className="space-y-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">Where should GamePulse track this game?</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">Choose stores for this edition. Steam and GMG are monitored independently.</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[{ value: "steam", label: "Steam only" }, { value: "gmg", label: "GMG only" }, { value: "both", label: "Both stores" }].map((option) => (
+                    <label key={option.value} className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${storeSelection === option.value ? "border-emerald-400/60 bg-emerald-400/[0.08] text-emerald-200" : "border-white/10 text-slate-300"}`}>
+                      <input type="radio" name="store-selection" value={option.value} checked={storeSelection === option.value} onChange={() => setStoreSelection(option.value)} className="accent-emerald-400" />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+                {(storeSelection === "gmg" || storeSelection === "both") && <div className="space-y-3 rounded-lg border border-white/[0.07] p-3">
+                  <div>
+                    <label htmlFor="gmg-product-url" className="mb-1 block text-sm font-medium text-slate-200">Exact GMG product URL</label>
+                    <input id="gmg-product-url" className={fieldClass} type="url" placeholder="https://www.greenmangaming.com/games/.../" value={gmgProductUrl} onChange={(event) => setGmgProductUrl(event.target.value)} required />
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Use the official product page for this exact edition and region—not a search-results URL. The monitor will verify whether it exposes a supported price.</p>
+                  </div>
+                  <div>
+                    <label htmlFor="gmg-region" className="mb-1 block text-sm font-medium text-slate-200">GMG region code</label>
+                    <input id="gmg-region" className={fieldClass} type="text" maxLength={2} autoCapitalize="characters" placeholder="IN" value={regionCode} onChange={(event) => setRegionCode(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))} required />
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Enter the country code for the GMG product page (for example, IN for India). This code must match the actual key restrictions. Current price processing accepts INR metadata only; other currencies will fail validation rather than be converted or guessed.</p>
+                  </div>
+                  <p className="text-xs leading-5 text-amber-200/80">GMG tracking stays unverified until the monitor confirms a valid regional listing and supported price. If GMG fails, Steam monitoring remains active when Both is selected.</p>
+                </div>}
               </div>
 
               {error && (
@@ -471,7 +555,7 @@ export default function AddGameModal({ onClose, onSaved }) {
           <button
             type="button"
             className={buttonClass}
-            onClick={onClose}
+            onClick={() => animateClose()}
             disabled={saving}
           >
             Cancel

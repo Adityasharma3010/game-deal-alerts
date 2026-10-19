@@ -1,4 +1,4 @@
-name: GamePulse Steam Price Monitor
+name: GamePulse Price Monitor
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gamepulse-steam-monitor
+  group: gamepulse-price-monitor
   cancel-in-progress: false
 
 jobs:
@@ -45,6 +45,20 @@ jobs:
           curl --silent --show-error --fail-with-body --max-time 240 \
             --request POST \
             --url "${base_url}/api/monitor-steam" \
+            --header "Authorization: Bearer ${GAMEPULSE_CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            --data '{}'
+
+      - name: Run Green Man Gaming price monitor
+        env:
+          GAMEPULSE_MONITOR_URL: ${{ secrets.GAMEPULSE_MONITOR_URL }}
+          GAMEPULSE_CRON_SECRET: ${{ secrets.GAMEPULSE_CRON_SECRET }}
+        run: |
+          set -eu
+          base_url="${GAMEPULSE_MONITOR_URL%/}"
+          curl --silent --show-error --fail-with-body --max-time 240 \
+            --request POST \
+            --url "${base_url}/api/monitor-gmg" \
             --header "Authorization: Bearer ${GAMEPULSE_CRON_SECRET}" \
             --header "Content-Type: application/json" \
             --data '{}'

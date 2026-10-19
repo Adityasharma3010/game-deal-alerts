@@ -20,6 +20,11 @@ Never put a Supabase service-role key in a `VITE_` variable or client-side code.
 
 ## Steam monitor setup
 
-Read [`docs/STEAM_MONITOR_SETUP.md`](docs/STEAM_MONITOR_SETUP.md) before enabling monitoring. It covers the required Supabase migration, server-side Vercel environment variables, GitHub Actions secrets, and verification steps.
+Read [`docs/PRICE_MONITOR_SETUP.md`](docs/PRICE_MONITOR_SETUP.md) before enabling monitoring. It covers the email-delivery migration, Resend and Vercel configuration, GitHub Actions secrets, explicit Green Man Gaming product mapping, and verification steps.
 
-The current monitor stores Steam INR price snapshots and triggered alert activity. Green Man Gaming matching and email delivery are not part of this implementation yet.
+The scheduled workflow checks Steam and explicitly mapped Green Man Gaming listings every six hours. Triggered alert events are emailed through Resend to the email address on the user’s Supabase Auth account. GMG monitoring requires a verified product URL mapping and public INR price metadata; it does not guess product matches or prices.
+
+
+### Store selection and regional GMG tracking
+
+When adding a game, choose Steam only, GMG only, or Both. GMG requires the exact official product URL and a two-letter region code. Apply `supabase/migrations/20261019133000_per_game_store_selection_and_gmg_regions.sql` after the email/GMG migration. See `docs/PRICE_MONITOR_SETUP.md` for the complete setup and regional validation limits.

@@ -30,21 +30,39 @@ export async function getSteamGameDetails(steamAppId) {
 
 export async function saveTrackedGame({
   steamAppId, title, coverImageUrl, edition, steamPackageId, alerts,
-  alertType, targetPrice, minimumDiscount,
+  alertType, targetPrice, minimumDiscount, storeSelection = "steam",
+  gmgProductUrl = "", regionCode = "IN",
 }) {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
   if (!sessionData.session) throw new Error("Your session has expired. Please sign in again.");
 
-  // Backward-compatible fallback for callers still passing a single alert.
   const normalizedAlerts = alerts?.length ? alerts : [{ type: alertType, targetPrice, minimumDiscount }];
-  const { data, error } = await supabase.rpc("track_steam_game_with_rules", {
+  const wantsSteam = storeSelection === "steam" || storeSelection === "both";
+  const wantsGmg = storeSelection === "gmg" || storeSelection === "both";
+  if (wantsSteam && !(Number(steamPackageId) > 0)) {
+    throw new Error("Steam has not provided a verified package for this edition. Choose GMG only or select another edition.");
+  }
+  if (wantsGmg) {
+    let parsed;
+    try { parsed = new URL(gmgProductUrl); } catch { throw new Error("Enter the exact Green Man Gaming product URL."); }
+    if (parsed.protocol !== "https:" || !/(^|\.)greenmangaming\.com$/i.test(parsed.hostname)) {
+      throw new Error("GMG URLs must use the official https://www.greenmangaming.com domain.");
+    }
+    if (!/^[A-Z]{2}$/.test(String(regionCode || "").toUpperCase())) {
+      throw new Error("Choose a valid two-letter region code.");
+    }
+  }
+
+  const { data, error } = await supabase.rpc("track_game_with_store_rules", {
     p_steam_app_id: steamAppId,
     p_title: title,
     p_cover_image_url: coverImageUrl,
     p_edition: edition,
-    p_steam_package_id: steamPackageId,
-    p_store: "steam",
+    p_steam_package_id: Number(steamPackageId) > 0 ? Number(steamPackageId) : null,
+    p_store_selection: storeSelection,
+    p_gmg_product_url: wantsGmg ? gmgProductUrl.trim() : null,
+    p_region_code: String(regionCode || "IN").toUpperCase(),
     p_alerts: normalizedAlerts.map((alert) => ({
       type: alert.type,
       target_price: alert.type === "target_price" ? Number(alert.targetPrice) : null,
@@ -57,29 +75,35 @@ export async function saveTrackedGame({
 
 export async function updateTrackedGameRules(trackedGameId, rules) {
   const { data: existing, error: readError } = await supabase
-    .from("alert_rules").select("id, alert_type").eq("tracked_game_id", trackedGameId);
+    .from("alert_rules").select("id, alert_type, store").eq("tracked_game_id", trackedGameId);
   if (readError) throw readError;
 
-  const desired = new Set(rules.map((rule) => rule.type));
+  const desiredTypes = new Set(rules.map((rule) => rule.type));
   for (const rule of existing ?? []) {
-    if (!desired.has(rule.alert_type)) {
+    if (!desiredTypes.has(rule.alert_type)) {
       const { error } = await supabase.from("alert_rules").delete().eq("id", rule.id);
       if (error) throw error;
     }
   }
-  for (const rule of rules) {
-    const payload = {
-      tracked_game_id: trackedGameId, store: "steam", alert_type: rule.type,
-      target_price: rule.type === "target_price" ? Number(rule.targetPrice) : null,
-      minimum_discount: rule.type === "minimum_discount" ? Number(rule.minimumDiscount) : null,
-      currency: "INR", is_enabled: rule.enabled !== false,
-      notify_on_first_listing: rule.type === "first_listing",
-    };
-    const current = (existing ?? []).find((item) => item.alert_type === rule.type);
-    const result = current
-      ? await supabase.from("alert_rules").update(payload).eq("id", current.id)
-      : await supabase.from("alert_rules").insert(payload);
-    if (result.error) throw result.error;
+
+  // Preserve the stores chosen when this edition was added. Each store keeps its own rule row.
+  const stores = [...new Set((existing ?? []).map((rule) => rule.store).filter(Boolean))];
+  if (!stores.length) stores.push("steam");
+  for (const store of stores) {
+    for (const rule of rules) {
+      const payload = {
+        tracked_game_id: trackedGameId, store, alert_type: rule.type,
+        target_price: rule.type === "target_price" ? Number(rule.targetPrice) : null,
+        minimum_discount: rule.type === "minimum_discount" ? Number(rule.minimumDiscount) : null,
+        currency: "INR", is_enabled: rule.enabled !== false,
+        notify_on_first_listing: rule.type === "first_listing",
+      };
+      const current = (existing ?? []).find((item) => item.alert_type === rule.type && item.store === store);
+      const result = current
+        ? await supabase.from("alert_rules").update(payload).eq("id", current.id)
+        : await supabase.from("alert_rules").insert(payload);
+      if (result.error) throw result.error;
+    }
   }
 }
 
@@ -109,6 +133,7 @@ export async function getMyTrackedGames() {
       game_id,
       edition,
       steam_package_id,
+      gmg_region_code,
       created_at,
       game:game_catalog (
         id,
@@ -139,6 +164,7 @@ export async function getMyTrackedGames() {
     title: trackedGame.game?.title ?? "Unknown game",
     edition: trackedGame.edition,
     steamPackageId: trackedGame.steam_package_id ?? null,
+    gmgRegionCode: trackedGame.gmg_region_code ?? "IN",
     coverImageUrl: trackedGame.game?.cover_image_url ?? null,
     steamAppId: trackedGame.game?.steam_app_id ?? null,
     createdAt: trackedGame.created_at,
