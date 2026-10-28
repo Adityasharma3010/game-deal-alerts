@@ -13,8 +13,17 @@ function authorized(req) {
 }
 
 function parsePriceFromHtml(html) {
-  const scripts = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
   const candidates = [];
+  const addCandidate = (price, currency, title = null) => {
+    const amount = Number(price);
+    const code = String(currency || "").trim().toUpperCase();
+    if (Number.isFinite(amount) && amount >= 0 && code === "INR") {
+      candidates.push({ price: amount, currency: code, title });
+    }
+  };
+
+  // First prefer structured Product/Offer data, which ties the amount to a product.
+  const scripts = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
   for (const match of scripts) {
     try {
       const parsed = JSON.parse(match[1].trim());
@@ -26,12 +35,9 @@ function parsePriceFromHtml(html) {
         if (types.some((entry) => String(entry || "").split("/").pop() === "Product")) {
           const offers = Array.isArray(value.offers) ? value.offers : [value.offers];
           for (const offer of offers) {
-            if (offer && typeof offer === "object") candidates.push({
-              price: offer.price ?? offer.lowPrice,
-              currency: offer.priceCurrency,
-              availability: offer.availability,
-              title: value.name,
-            });
+            if (offer && typeof offer === "object") {
+              addCandidate(offer.price ?? offer.lowPrice, offer.priceCurrency, value.name);
+            }
           }
         }
         Object.values(value).forEach(visit);
@@ -39,9 +45,48 @@ function parsePriceFromHtml(html) {
       visit(parsed);
     } catch { /* Ignore malformed JSON-LD blocks. */ }
   }
-  const valid = candidates.find((item) => Number.isFinite(Number(item.price)) && Number(item.price) >= 0 && String(item.currency || "").toUpperCase() === "INR");
-  if (!valid) throw new Error("Could not find a verified INR product price in Green Man Gaming page metadata.");
-  return { currentPrice: Number(valid.price), currency: "INR", name: valid.title || null, originalPrice: null, discountPercent: 0 };
+
+  // Some localized storefront pages publish the same verified price in meta tags
+  // rather than JSON-LD. Require an explicit INR currency tag; never infer currency
+  // from the user's region or convert a foreign-currency price.
+  const metaTags = [...html.matchAll(/<meta\b[^>]*>/gi)].map((match) => match[0]);
+  const metaValue = (tag, attribute, expected) => {
+    const attr = tag.match(new RegExp(`\\b${attribute}\\s*=\\s*["']([^"']+)["']`, "i"));
+    return attr && attr[1].toLowerCase() === expected.toLowerCase()
+      ? (tag.match(/\bcontent\s*=\s*["']([^"']+)["']/i) || [])[1] || null
+      : null;
+  };
+  const currencyMeta = metaTags.map((tag) =>
+    metaValue(tag, "property", "product:price:currency")
+      || metaValue(tag, "itemprop", "priceCurrency")
+      || metaValue(tag, "name", "priceCurrency")
+  ).find(Boolean);
+  const amountMeta = metaTags.map((tag) =>
+    metaValue(tag, "property", "product:price:amount")
+      || metaValue(tag, "itemprop", "price")
+      || metaValue(tag, "name", "price")
+  ).find(Boolean);
+  if (currencyMeta && amountMeta) addCandidate(amountMeta, currencyMeta);
+
+  // Also support itemprop attributes directly on price elements, but only when
+  // the page explicitly declares INR in a currency meta tag.
+  if (currencyMeta) {
+    const itempropPrice = html.match(/<[^>]*itemprop=["']price["'][^>]*content=["']([^"']+)["'][^>]*>/i)
+      || html.match(/<[^>]*content=["']([^"']+)["'][^>]*itemprop=["']price["'][^>]*>/i);
+    if (itempropPrice) addCandidate(itempropPrice[1], currencyMeta);
+  }
+
+  const valid = candidates[0];
+  if (!valid) {
+    throw new Error("Could not find a verified INR product price in Green Man Gaming page metadata. Confirm the product URL is localized to India and exposes an INR price; foreign-currency prices are intentionally not converted.");
+  }
+  return {
+    currentPrice: valid.price,
+    currency: "INR",
+    name: valid.title || null,
+    originalPrice: null,
+    discountPercent: 0,
+  };
 }
 
 async function fetchGmgProduct(url) {
