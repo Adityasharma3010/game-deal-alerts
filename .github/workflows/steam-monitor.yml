@@ -32,6 +32,8 @@ jobs:
           fi
 
       - name: Run Steam price monitor
+        id: steam
+        continue-on-error: true
         env:
           GAMEPULSE_MONITOR_URL: ${{ secrets.GAMEPULSE_MONITOR_URL }}
           GAMEPULSE_CRON_SECRET: ${{ secrets.GAMEPULSE_CRON_SECRET }}
@@ -50,6 +52,8 @@ jobs:
             --data '{}'
 
       - name: Run Green Man Gaming price monitor
+        id: gmg
+        continue-on-error: true
         env:
           GAMEPULSE_MONITOR_URL: ${{ secrets.GAMEPULSE_MONITOR_URL }}
           GAMEPULSE_CRON_SECRET: ${{ secrets.GAMEPULSE_CRON_SECRET }}
@@ -62,3 +66,14 @@ jobs:
             --header "Authorization: Bearer ${GAMEPULSE_CRON_SECRET}" \
             --header "Content-Type: application/json" \
             --data '{}'
+
+      - name: Report monitor failures
+        if: always()
+        env:
+          STEAM_OUTCOME: ${{ steps.steam.outcome }}
+          GMG_OUTCOME: ${{ steps.gmg.outcome }}
+        run: |
+          if [ "$STEAM_OUTCOME" != "success" ] || [ "$GMG_OUTCOME" != "success" ]; then
+            echo "Price monitoring failed. Steam: $STEAM_OUTCOME; GMG: $GMG_OUTCOME" >&2
+            exit 1
+          fi
